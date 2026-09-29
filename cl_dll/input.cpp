@@ -637,6 +637,38 @@ void CL_AdjustAngles ( float frametime, float *viewangles )
 		viewangles[ROLL] = -50;
 }
 
+static void SimpleAim(float *va)
+{
+    cl_entity_t *me = gEngfuncs.GetLocalPlayer();
+    if (!me) return;
+
+    float eye[3] = { me->origin[0], me->origin[1], me->origin[2] + 17.0f };
+    float best = 1e9f;
+    float tgt[3] = {0, 0, 0};
+
+    for (int i = 1; i <= gEngfuncs.GetMaxClients(); i++)
+    {
+        cl_entity_t *e = gEngfuncs.GetEntityByIndex(i);
+        if (!e || e == me || !e->player) continue;
+        if (e->curstate.messagenum != me->curstate.messagenum) continue;
+        if (g_PlayerExtraInfo[i].dead) continue;
+        if (g_PlayerExtraInfo[i].teamnumber == g_PlayerExtraInfo[me->index].teamnumber) continue;
+
+        float dx = e->origin[0] - eye[0];
+        float dy = e->origin[1] - eye[1];
+        float dz = e->origin[2] + 17.0f - eye[2];
+        float dist = sqrtf(dx*dx + dy*dy + dz*dz);
+        if (dist < best) { best = dist; tgt[0] = dx; tgt[1] = dy; tgt[2] = dz; }
+    }
+    if (best > 1e8f) return;
+
+    float yaw   = atan2f(tgt[1], tgt[0]) * 180.0f / 3.14159265f;
+    float pitch = -atan2f(tgt[2], sqrtf(tgt[0]*tgt[0] + tgt[1]*tgt[1])) * 180.0f / 3.14159265f;
+
+    float dyaw = fmodf(yaw - va[1] + 540.0f, 360.0f) - 180.0f;
+    va[1] += dyaw * 0.25f;
+    va[0] += (pitch - va[0]) * 0.25f;
+}
 /*
 ================
 CL_CreateMove
@@ -659,6 +691,8 @@ void DLLEXPORT CL_CreateMove ( float frametime, struct usercmd_s *cmd, int activ
 		gEngfuncs.GetViewAngles( (float *)viewangles );
 
 		CL_AdjustAngles ( frametime, viewangles );
+		CL_AdjustAngles ( frametime, viewangles );
+SimpleAim( viewangles );
 
 		memset (cmd, 0, sizeof(*cmd));
 		
